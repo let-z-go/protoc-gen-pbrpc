@@ -157,6 +157,19 @@ import (
     return import_decl
 
 
+def _make_method_index_const_decl(package_path, sd):
+    method_index_const_decl = "\nconst (\n"
+    service_name = sd.name
+
+    for method_index, md in enumerate(sd.method):
+        method_name = md.name
+        method_index_const_name = _get_method_index_const_name(service_name, method_name)
+        method_index_const_decl += "    {} = {}\n".format(method_index_const_name, method_index)
+
+    method_index_const_decl += ")\n"
+    return method_index_const_decl
+
+
 def _make_service_client_decl(package_path, sd):
     service_name = sd.name
     service_client_name = service_name + "Client"
@@ -173,8 +186,9 @@ type {service_client_name} struct {{
     service_name_const_name = _get_service_name_const_name(service_name)
     method_table_name = _get_method_table_name(service_name)
 
-    for method_index, md in enumerate(sd.method):
+    for md in sd.method:
         method_name = md.name
+        method_index_const_name = _get_method_index_const_name(service_name, method_name)
         request_type = _get_struct_path(package_path, md.input_type)
         response_type = _get_struct_path(package_path, md.output_type)
 
@@ -207,8 +221,8 @@ type {service_client_name} struct {{
         service_client_decl += """\
 
 func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21} {{
-    responseType := {method_table_name}[{method_index}].ResponseType
-    {part23}e := self.Channel.CallMethod{part22}(self.Context, {service_name_const_name}, {method_index}, {part12}, responseType, autoRetry)
+    responseType := {method_table_name}[{method_index_const_name}].ResponseType
+    {part23}e := self.Channel.CallMethod{part22}(self.Context, {service_name_const_name}, {method_index_const_name}, {part12}, responseType, autoRetry)
 
     if e != nil {{
         return {part24}e
@@ -220,7 +234,7 @@ func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21}
             service_client_name=service_client_name,
             method_name=method_name,
             method_table_name=method_table_name,
-            method_index=method_index,
+            method_index_const_name=method_index_const_name,
             service_name_const_name=service_name_const_name,
             part11=part11,
             part12=part12,
@@ -243,8 +257,9 @@ def _make_service_handler_base_decl(package_path, sd):
 
 type {service_handler_base_name} struct {{}}
 
-func ({service_handler_base_name}) GetName() string {{ return {service_name_const_name} }}
-func ({service_handler_base_name}) GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
+func ({service_handler_base_name}) X_GetName() string {{ return {service_name_const_name} }}
+func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
+func ({service_handler_base_name}) X_InterceptMethodCall(int32, context.Context, pbrpc.Channel, pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode) {{ return nil, 0 }}
 
 var _ = pbrpc.ServiceHandler({service_handler_base_name}{{}})
 """.format(
@@ -262,6 +277,7 @@ var _ = pbrpc.ServiceHandler({service_handler_base_name}{{}})
 //     {service_handler_base_name}
 // }}
 //
+// func ({service_handler_name}) X_InterceptMethodCall(methodIndex int32, context_ context.Context, channel pbrpc.Channel, request pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode)
 """.format(
         service_handler_name=service_handler_name,
         service_handler_base_name=service_handler_base_name,
@@ -299,19 +315,18 @@ def _make_method_table_decl(package_path, sd):
     service_name = sd.name
     method_table_decl = "\nvar {} = pbrpc.MethodTable{{\n".format(_get_method_table_name(service_name))
 
-    for method_index, md in enumerate(sd.method):
+    for md in sd.method:
         method_name = md.name
+        method_index_const_name = _get_method_index_const_name(service_name, method_name)
         request_type = _get_struct_path(package_path, md.input_type)
         response_type = _get_struct_path(package_path, md.output_type)
 
         if md.input_type == _VOID_PATH:
-            part11 = "_"
+            part11 = ""
             part12 = ""
-            part13 = ""
         else:
-            part11 = "request"
-            part12 = ", *{}".format(request_type)
-            part13 = ", request.(*{})".format(request_type)
+            part11 = ", *{}".format(request_type)
+            part12 = ", request.(*{})".format(request_type)
 
         if md.output_type in (_VOID_PATH, _NO_RETURN_PATH):
             part21 = "error"
@@ -321,18 +336,30 @@ def _make_method_table_decl(package_path, sd):
             part22 = ""
 
         method_table_decl += """\
-    /* [{method_index}]: {service_name}.{method_name} */ {{
+    /* {service_name}.{method_name} */ {{
         reflect.TypeOf({request_type}{{}}),
         reflect.TypeOf({response_type}{{}}),
 
-        func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, channel pbrpc.Channel, {part11} pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode) {{
-            methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context, pbrpc.Channel{part12}) {part21} }})
+        func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, channel pbrpc.Channel, request pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode) {{
+            {{
+                response, errorCode := serviceHandler.X_InterceptMethodCall({method_index_const_name}, context_, channel, request)
+
+                if errorCode != 0 {{
+                    return nil, errorCode
+                }}
+
+                if response != nil {{
+                    return response, 0
+                }}
+            }}
+
+            methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context, pbrpc.Channel{part11}) {part21} }})
 
             if !ok {{
                 return nil, pbrpc.ErrorNotImplemented
             }}
 
-            response, e := {part22}methodHandler.{method_name}(context_, channel{part13})
+            response, e := {part22}methodHandler.{method_name}(context_, channel{part12})
 
             if e != nil {{
                 if e, ok := e.(pbrpc.Error); ok && e.IsInitiative() {{
@@ -346,14 +373,13 @@ def _make_method_table_decl(package_path, sd):
         }},
     }},
 """.format(
-            method_index=method_index,
             service_name=service_name,
             method_name=method_name,
+            method_index_const_name=method_index_const_name,
             request_type=request_type,
             response_type=response_type,
             part11=part11,
             part12=part12,
-            part13=part13,
             part21=part21,
             part22=part22,
         )
@@ -387,6 +413,7 @@ package {package_name}
     for sd in fd.service:
         service_name = sd.name
         file_content += "\n// {} {}\n".format(service_name, (80 - 4 - len(service_name)) * "/")
+        file_content += _make_method_index_const_decl(package_path, sd)
         file_content += _make_service_client_decl(package_path, sd)
         file_content += _make_service_handler_base_decl(package_path, sd)
         file_content += _make_service_name_const_decl(sd)
@@ -404,6 +431,10 @@ def _get_package_name(package_path):
         i = -1
 
     return package_path[i+1:].replace("-", "_").replace(".", "_")
+
+
+def _get_method_index_const_name(service_name, method_name):
+    return service_name + "_" + method_name
 
 
 def _get_service_name_const_name(service_name):
