@@ -187,7 +187,7 @@ def _make_service_client_decl(package_path, sd):
     service_client_decl = """\
 
 type {service_client_name} struct {{
-    Channel pbrpc.Channel
+    MethodCaller pbrpc.MethodCaller
     Context context.Context
 }}
 """.format(
@@ -233,7 +233,7 @@ type {service_client_name} struct {{
 
 func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21} {{
     methodRecord := &{method_table_name}[{method_index_const_name}]
-    {part23}e := self.Channel.CallMethod{part22}(self.Context, {service_name_const_name}, methodRecord.Name, {part12}, methodRecord.ResponseType, autoRetry)
+    {part23}e := self.MethodCaller.CallMethod{part22}(self.Context, {service_name_const_name}, methodRecord.Name, {part12}, methodRecord.ResponseType, autoRetry)
 
     if e != nil {{
         return {part24}e
