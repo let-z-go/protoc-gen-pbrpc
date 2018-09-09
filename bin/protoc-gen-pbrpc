@@ -232,6 +232,7 @@ type {service_client_name} struct {{
         service_client_decl += """\
 
 func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21} {{
+    _ = pbrpc.IncomingMessage(&{response_type}{{}})
     methodRecord := &{method_table_name}[{method_index_const_name}]
     {part23}e := self.MethodCaller.CallMethod{part22}(self.Context, {service_name_const_name}, methodRecord.Name, {part12}, methodRecord.ResponseType, autoRetry)
 
@@ -244,6 +245,7 @@ func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21}
 """.format(
             service_client_name=service_client_name,
             method_name=method_name,
+            response_type=response_type,
             method_table_name=method_table_name,
             method_index_const_name=method_index_const_name,
             service_name_const_name=service_name_const_name,
@@ -266,13 +268,12 @@ def _make_service_handler_base_decl(package_path, sd):
     method_table_name = _get_method_table_name(service_name)
     service_handler_base_decl = """\
 
-type {service_handler_base_name} struct {{}}
+type {service_handler_base_name} struct {{
+    pbrpc.ServiceHandlerBase
+}}
 
-func ({service_handler_base_name}) X_GetName() string {{ return {service_name_const_name} }}
-func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
-func ({service_handler_base_name}) X_InterceptMethodCall(*pbrpc.MethodRecord, context.Context, pbrpc.Channel, pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode) {{ return nil, 0 }}
-
-var _ = pbrpc.ServiceHandler({service_handler_base_name}{{}})
+func (*{service_handler_base_name}) X_GetName() string {{ return {service_name_const_name} }}
+func (*{service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
 """.format(
         service_handler_base_name=service_handler_base_name,
         service_name_const_name=service_name_const_name,
@@ -288,7 +289,6 @@ var _ = pbrpc.ServiceHandler({service_handler_base_name}{{}})
 //     {service_handler_base_name}
 // }}
 //
-// func ({service_handler_name}) X_InterceptMethodCall(methodRecord *pbrpc.MethodRecord, context_ context.Context, channel pbrpc.Channel, request pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, pbrpc.ErrorCode)
 """.format(
         service_handler_name=service_handler_name,
         service_handler_base_name=service_handler_base_name,
@@ -309,7 +309,7 @@ var _ = pbrpc.ServiceHandler({service_handler_base_name}{{}})
         else:
             part2 = "(*{}, error)".format(response_type)
 
-        service_handler_base_decl += "// func ({}) {}(context_ context.Context, channel pbrpc.Channel{}) {}\n".format(service_handler_name, method_name, part1, part2)
+        service_handler_base_decl += "// func (*{}) {}(context_ context.Context{}) {}\n".format(service_handler_name, method_name, part1, part2)
 
     return service_handler_base_decl
 
@@ -347,14 +347,14 @@ def _make_method_table_decl(package_path, sd):
         reflect.TypeOf({request_type}{{}}),
         reflect.TypeOf({response_type}{{}}),
 
-        func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, channel pbrpc.Channel, {part11} pbrpc.IncomingMessage) (pbrpc.OutgoingMessage, error) {{
-            methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context, pbrpc.Channel{part12}) {part21} }})
+        func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, {part11} interface{{}}) (pbrpc.OutgoingMessage, error) {{
+            methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context{part12}) {part21} }})
 
             if !ok {{
                 return nil, pbrpc.MakeError(pbrpc.ErrorNotImplemented)
             }}
 
-            return {part22}methodHandler.{method_name}(context_, channel{part13})
+            return {part22}methodHandler.{method_name}(context_{part13})
         }},
     }},
 """.format(
