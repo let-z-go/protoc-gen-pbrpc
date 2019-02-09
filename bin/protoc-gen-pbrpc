@@ -187,8 +187,9 @@ def _make_service_client_decl(package_path, sd):
     service_client_decl = """\
 
 type {service_client_name} struct {{
-    MethodCaller pbrpc.MethodCaller
-    Context context.Context
+    methodCaller pbrpc.MethodCaller
+    extraData    []byte
+    autoRetry    bool
 }}
 """.format(
         service_client_name=service_client_name,
@@ -207,7 +208,7 @@ type {service_client_name} struct {{
             part11 = ""
             part12 = "&{}{{}}".format(request_type)
         else:
-            part11 = "request *{}, ".format(request_type)
+            part11 = ", request *{}".format(request_type)
             part12 = "request"
 
         if md.output_type in (_VOID_PATH, _NO_RETURN_PATH):
@@ -231,16 +232,40 @@ type {service_client_name} struct {{
 
         service_client_decl += """\
 
-func (self {service_client_name}) {method_name}({part11}autoRetry bool) {part21} {{
+func (self {service_client_name}) {method_name}(context_ context.Context{part11}) {part21} {{
     _ = pbrpc.IncomingMessage(&{response_type}{{}})
     methodRecord := &{method_table_name}[{method_index_const_name}]
-    {part23}e := self.MethodCaller.CallMethod{part22}(self.Context, {service_name_const_name}, methodRecord.Name, {part12}, methodRecord.ResponseType, autoRetry)
+    {part23}e := self.methodCaller.CallMethod{part22}(context_, {service_name_const_name}, methodRecord.Name, methodRecord.Index, self.extraData, {part12}, methodRecord.ResponseType, self.autoRetry)
 
     if e != nil {{
         return {part24}e
     }}
 
     return {part25}e
+}}
+
+func (self {service_client_name}) WithAutoRetry(autoRetry bool) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: self.methodCaller,
+        extraData: self.extraData,
+        autoRetry: autoRetry,
+    }}
+}}
+
+func (self {service_client_name}) WithExtraData(extraData []byte) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: self.methodCaller,
+        extraData: extraData,
+        autoRetry: self.autoRetry,
+    }}
+}}
+
+func Make{service_client_name}(methodCaller pbrpc.MethodCaller) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: methodCaller,
+        extraData: nil,
+        autoRetry: false,
+    }}
 }}
 """.format(
             service_client_name=service_client_name,
@@ -268,12 +293,10 @@ def _make_service_handler_base_decl(package_path, sd):
     method_table_name = _get_method_table_name(service_name)
     service_handler_base_decl = """\
 
-type {service_handler_base_name} struct {{
-    pbrpc.ServiceHandlerBase
-}}
+type {service_handler_base_name} struct {{}}
 
-func (*{service_handler_base_name}) X_GetName() string {{ return {service_name_const_name} }}
-func (*{service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
+func ({service_handler_base_name}) X_GetName() string {{ return {service_name_const_name} }}
+func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ return {method_table_name} }}
 """.format(
         service_handler_base_name=service_handler_base_name,
         service_name_const_name=service_name_const_name,
@@ -309,7 +332,7 @@ func (*{service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ retu
         else:
             part2 = "(*{}, error)".format(response_type)
 
-        service_handler_base_decl += "// func (*{}) {}(context_ context.Context{}) {}\n".format(service_handler_name, method_name, part1, part2)
+        service_handler_base_decl += "// func ({}) {}(context_ context.Context{}) {}\n".format(service_handler_name, method_name, part1, part2)
 
     return service_handler_base_decl
 
