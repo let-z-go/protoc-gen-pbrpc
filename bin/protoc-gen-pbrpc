@@ -374,7 +374,7 @@ def _make_method_table_decl(package_path, sd):
             methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context{part12}) {part21} }})
 
             if !ok {{
-                return nil, pbrpc.MakeError(pbrpc.ErrorNotImplemented)
+                return nil, pbrpc.X_MakeError(pbrpc.ErrorNotImplemented)
             }}
 
             return {part22}methodHandler.{method_name}(context_{part13})
