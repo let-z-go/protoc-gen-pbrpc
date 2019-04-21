@@ -188,8 +188,45 @@ def _make_service_client_decl(package_path, sd):
 
 type {service_client_name} struct {{
     methodCaller pbrpc.MethodCaller
+    fifoKey      string
     extraData    []byte
     autoRetry    bool
+}}
+
+func Make{service_client_name}(methodCaller pbrpc.MethodCaller) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: methodCaller,
+        fifoKey: "",
+        extraData: nil,
+        autoRetry: false,
+    }}
+}}
+
+func (self {service_client_name}) WithFIFOKey(fifoKey string) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: self.methodCaller,
+        fifoKey: fifoKey,
+        extraData: self.extraData,
+        autoRetry: self.autoRetry,
+    }}
+}}
+
+func (self {service_client_name}) WithExtraData(extraData []byte) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: self.methodCaller,
+        fifoKey: self.fifoKey,
+        extraData: extraData,
+        autoRetry: self.autoRetry,
+    }}
+}}
+
+func (self {service_client_name}) WithAutoRetry(autoRetry bool) {service_client_name} {{
+    return {service_client_name}{{
+        methodCaller: self.methodCaller,
+        fifoKey: self.fifoKey,
+        extraData: self.extraData,
+        autoRetry: autoRetry,
+    }}
 }}
 """.format(
         service_client_name=service_client_name,
@@ -235,37 +272,13 @@ type {service_client_name} struct {{
 func (self {service_client_name}) {method_name}(context_ context.Context{part11}) {part21} {{
     _ = pbrpc.IncomingMessage(&{response_type}{{}})
     methodRecord := &{method_table_name}[{method_index_const_name}]
-    {part23}e := self.methodCaller.CallMethod{part22}(context_, {service_name_const_name}, methodRecord.Name, methodRecord.Index, self.extraData, {part12}, methodRecord.ResponseType, self.autoRetry)
+    {part23}e := self.methodCaller.CallMethod{part22}(context_, {service_name_const_name}, methodRecord.Name, methodRecord.Index, self.fifoKey, self.extraData, {part12}, methodRecord.ResponseType, self.autoRetry)
 
     if e != nil {{
         return {part24}e
     }}
 
     return {part25}e
-}}
-
-func (self {service_client_name}) WithAutoRetry(autoRetry bool) {service_client_name} {{
-    return {service_client_name}{{
-        methodCaller: self.methodCaller,
-        extraData: self.extraData,
-        autoRetry: autoRetry,
-    }}
-}}
-
-func (self {service_client_name}) WithExtraData(extraData []byte) {service_client_name} {{
-    return {service_client_name}{{
-        methodCaller: self.methodCaller,
-        extraData: extraData,
-        autoRetry: self.autoRetry,
-    }}
-}}
-
-func Make{service_client_name}(methodCaller pbrpc.MethodCaller) {service_client_name} {{
-    return {service_client_name}{{
-        methodCaller: methodCaller,
-        extraData: nil,
-        autoRetry: false,
-    }}
 }}
 """.format(
             service_client_name=service_client_name,
