@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 
-import os.path
+import os
 import re
 import six
+import subprocess
 import sys
 
 from google.protobuf.compiler import plugin_pb2
@@ -188,9 +189,9 @@ def _make_service_client_decl(package_path, sd):
 
 type {service_client_name} struct {{
     methodCaller pbrpc.MethodCaller
-    resourceID   string
-    extraData    map[string][]byte
-    autoRetry    bool
+    resourceID string
+    extraData map[string][]byte
+    autoRetry bool
 }}
 
 func Make{service_client_name}(methodCaller pbrpc.MethodCaller) {service_client_name} {{
@@ -409,6 +410,19 @@ def _make_method_table_decl(package_path, sd):
     return method_table_decl
 
 
+def _format_code(code):
+    try:
+        process = subprocess.Popen("gofmt", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        output, _ = process.communicate(code)
+
+        if process.poll() == os.EX_OK:
+            code = output
+    except:
+        pass
+
+    return code
+
+
 def _generate_stub(fd):
     if len(fd.service) == 0:
         return
@@ -441,7 +455,7 @@ package {package_name}
 
     file_ = _response.file.add()
     file_.name = "{}/{}.pbrpc.go".format(package_path, _remove_postfix(os.path.basename(file_path), ".proto"))
-    file_.content = file_content
+    file_.content = _format_code(file_content)
 
 
 def _get_package_name(package_path):
