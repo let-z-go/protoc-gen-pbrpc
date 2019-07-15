@@ -10,36 +10,36 @@ import sys
 from google.protobuf.compiler import plugin_pb2
 
 
-_VOID_PATH = ".pbrpc.Void"
-_NO_RETURN_PATH = ".pbrpc.NoReturn"
+VOID_PATH = ".pbrpc.Void"
+NO_RETURN_PATH = ".pbrpc.NoReturn"
 
-_file_path_2_package_path = {}
-_message_path_2_message_name_offset = {}
-_message_path_2_package_path = {}
-_package_name_counts = {}
-_package_path_2_package_alias = {}
-_package_importations = []
-_response = plugin_pb2.CodeGeneratorResponse()
+file_path_2_package_path = {}
+message_path_2_message_name_offset = {}
+message_path_2_package_path = {}
+package_name_counts = {}
+package_path_2_package_alias = {}
+package_importations = []
+response = plugin_pb2.CodeGeneratorResponse()
 
 
-def _generate_stubs(request):
-    global _response
-
-    for fd in request.proto_file:
-        _preprocess_file(fd)
+def generate_stubs(request):
+    global response
 
     for fd in request.proto_file:
-        _process_file(fd)
+        preprocess_file(fd)
 
-    _file_path_2_package_path.clear()
-    _message_path_2_message_name_offset.clear()
-    _message_path_2_package_path.clear()
-    response = _response
-    _response = plugin_pb2.CodeGeneratorResponse()
+    for fd in request.proto_file:
+        process_file(fd)
+
+    file_path_2_package_path.clear()
+    message_path_2_message_name_offset.clear()
+    message_path_2_package_path.clear()
+    response = response
+    response = plugin_pb2.CodeGeneratorResponse()
     return response
 
 
-def _preprocess_file(fd):
+def preprocess_file(fd):
     file_path = fd.name
 
     if fd.options.go_package == "":
@@ -50,7 +50,7 @@ def _preprocess_file(fd):
     if package_path == "":
         raise SystemExit("{}: invalid `go_package` option: {!r}".format(file_path, fd.options.go_package))
 
-    _file_path_2_package_path[file_path] = package_path
+    file_path_2_package_path[file_path] = package_path
     message_path_prefix = "."
 
     if fd.package != "":
@@ -59,87 +59,87 @@ def _preprocess_file(fd):
     message_name_offset = len(message_path_prefix)
 
     for d in fd.message_type:
-        _preprocess_message(d, message_path_prefix, message_name_offset, package_path)
+        preprocess_message(d, message_path_prefix, message_name_offset, package_path)
 
 
-def _preprocess_message(d, message_path_prefix, message_name_offset, package_path):
+def preprocess_message(d, message_path_prefix, message_name_offset, package_path):
     message_path = message_path_prefix + d.name
-    _message_path_2_message_name_offset[message_path] = message_name_offset
-    _message_path_2_package_path[message_path] = package_path
+    message_path_2_message_name_offset[message_path] = message_name_offset
+    message_path_2_package_path[message_path] = package_path
     message_path_prefix = message_path + "."
 
     for nested_d in d.nested_type:
-        _preprocess_message(nested_d, message_path_prefix, message_name_offset, package_path)
+        preprocess_message(nested_d, message_path_prefix, message_name_offset, package_path)
 
 
-def _get_package_path_by_file_path(file_path):
-    return _file_path_2_package_path[file_path]
+def get_package_path_by_file_path(file_path):
+    return file_path_2_package_path[file_path]
 
 
-def _get_message_name(message_path):
-    return message_path[_message_path_2_message_name_offset[message_path]:].replace(".", "_")
+def get_message_name(message_path):
+    return message_path[message_path_2_message_name_offset[message_path]:].replace(".", "_")
 
 
-def _get_package_path_by_message_path(message_path):
-    return _message_path_2_package_path[message_path]
+def get_package_path_by_message_path(message_path):
+    return message_path_2_package_path[message_path]
 
 
-def _process_file(fd):
-    _import_package("pbrpc", "github.com/let-z-go/pbrpc")
+def process_file(fd):
+    import_package("pbrpc", "github.com/let-z-go/pbrpc")
 
     for sd in fd.service:
-        _preprocess_service(sd)
+        preprocess_service(sd)
 
-    _generate_stub(fd)
-    _package_name_counts.clear()
-    _package_path_2_package_alias.clear()
-    _package_importations[:] = ()
-
-
-def _import_package(package_alias, package_path):
-    _package_path_2_package_alias[package_path] = package_alias
-    _package_importations.append((package_alias, package_path))
+    generate_stub(fd)
+    package_name_counts.clear()
+    package_path_2_package_alias.clear()
+    package_importations[:] = ()
 
 
-def _preprocess_service(sd):
+def import_package(package_alias, package_path):
+    package_path_2_package_alias[package_path] = package_alias
+    package_importations.append((package_alias, package_path))
+
+
+def preprocess_service(sd):
     for md in sd.method:
-        _preprocess_method(md)
+        preprocess_method(md)
 
 
-def _preprocess_method(md):
+def preprocess_method(md):
     for message_path in (md.input_type, md.output_type):
-        package_path = _get_package_path_by_message_path(message_path)
+        package_path = get_package_path_by_message_path(message_path)
 
-        if package_path in _package_path_2_package_alias.keys():
+        if package_path in package_path_2_package_alias.keys():
             continue
 
-        package_name = _get_package_name(package_path)
-        package_name_count = _package_name_counts.get(package_name, 0)
-        _package_name_counts[package_name] = package_name_count + 1
+        package_name = get_package_name(package_path)
+        package_name_count = package_name_counts.get(package_name, 0)
+        package_name_counts[package_name] = package_name_count + 1
 
         if package_name_count == 0:
             package_alias = package_name
         else:
             package_alias = package_name + str(package_name_count)
 
-        _package_path_2_package_alias[package_path] = package_alias
-        _import_package(package_alias, package_path)
+        package_path_2_package_alias[package_path] = package_alias
+        import_package(package_alias, package_path)
 
 
-def _get_struct_path(current_package_path, message_path):
-    package_path = _get_package_path_by_message_path(message_path)
-    message_name = _get_message_name(message_path)
+def get_struct_path(current_package_path, message_path):
+    package_path = get_package_path_by_message_path(message_path)
+    message_name = get_message_name(message_path)
 
     if package_path == current_package_path:
         struct_path = message_name
     else:
-        package_alias = _package_path_2_package_alias[package_path]
+        package_alias = package_path_2_package_alias[package_path]
         struct_path = package_alias + "." + message_name
 
     return struct_path
 
 
-def _make_import_decl(current_package_path):
+def make_import_decl(current_package_path):
     import_decl = """\
 
 import (
@@ -148,7 +148,7 @@ import (
 
 """
 
-    for package_alias, package_path in sorted(_package_importations, key=lambda x: x[1]):
+    for package_alias, package_path in sorted(package_importations, key=lambda x: x[1]):
         if package_path == current_package_path:
             continue
 
@@ -158,10 +158,10 @@ import (
     return import_decl
 
 
-def _make_const_decl(package_path, sd):
+def make_const_decl(package_path, sd):
     service_name = sd.name
-    service_name_const_name = _get_service_name_const_name(service_name)
-    service_name_const_value = _remove_postfix(service_name, "Service")
+    service_name_const_name = get_service_name_const_name(service_name)
+    service_name_const_value = remove_postfix(service_name, "Service")
 
     const_decl = """\
 
@@ -175,16 +175,17 @@ const (
 
     for method_index, md in enumerate(sorted(sd.method, key=lambda x: x.name)):
         method_name = md.name
-        method_index_const_name = _get_method_index_const_name(service_name, method_name)
+        method_index_const_name = get_method_index_const_name(service_name, method_name)
         const_decl += "    {} = {}\n".format(method_index_const_name, method_index)
 
     const_decl += ")\n"
     return const_decl
 
 
-def _make_service_client_decl(package_path, sd):
+def make_service_client_decl(package_path, sd):
     service_name = sd.name
     service_client_name = service_name + "Client"
+
     service_client_decl = """\
 
 type {service_client_name} struct {{
@@ -233,26 +234,26 @@ func (self {service_client_name}) WithAutoRetry(autoRetry bool) {service_client_
         service_client_name=service_client_name,
     )
 
-    service_name_const_name = _get_service_name_const_name(service_name)
-    method_table_name = _get_method_table_name(service_name)
+    service_name_const_name = get_service_name_const_name(service_name)
+    method_table_name = get_method_table_name(service_name)
 
     for md in sd.method:
         method_name = md.name
-        method_index_const_name = _get_method_index_const_name(service_name, method_name)
-        request_type = _get_struct_path(package_path, md.input_type)
-        response_type = _get_struct_path(package_path, md.output_type)
+        method_index_const_name = get_method_index_const_name(service_name, method_name)
+        request_type = get_struct_path(package_path, md.input_type)
+        response_type = get_struct_path(package_path, md.output_type)
 
-        if md.input_type == _VOID_PATH:
+        if md.input_type == VOID_PATH:
             part11 = ""
             part12 = "&{}{{}}".format(request_type)
         else:
             part11 = ", request *{}".format(request_type)
             part12 = "request"
 
-        if md.output_type in (_VOID_PATH, _NO_RETURN_PATH):
+        if md.output_type in (VOID_PATH, NO_RETURN_PATH):
             part21 = "error"
 
-            if md.output_type == _VOID_PATH:
+            if md.output_type == VOID_PATH:
                 part22 = ""
                 part23 = "_, "
             else:
@@ -300,11 +301,12 @@ func (self {service_client_name}) {method_name}(context_ context.Context{part11}
     return service_client_decl
 
 
-def _make_service_handler_base_decl(package_path, sd):
+def make_service_handler_base_decl(package_path, sd):
     service_name = sd.name
     service_handler_base_name = service_name + "HandlerBase"
-    service_name_const_name = _get_service_name_const_name(service_name)
-    method_table_name = _get_method_table_name(service_name)
+    service_name_const_name = get_service_name_const_name(service_name)
+    method_table_name = get_method_table_name(service_name)
+
     service_handler_base_decl = """\
 
 type {service_handler_base_name} struct {{}}
@@ -318,6 +320,7 @@ func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ retur
     )
 
     service_handler_name = service_name + "Handler"
+
     service_handler_base_decl += """\
 
 // `{service_handler_name}` template:
@@ -333,15 +336,15 @@ func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ retur
 
     for md in sd.method:
         method_name = md.name
-        request_type = _get_struct_path(package_path, md.input_type)
-        response_type = _get_struct_path(package_path, md.output_type)
+        request_type = get_struct_path(package_path, md.input_type)
+        response_type = get_struct_path(package_path, md.output_type)
 
-        if md.input_type == _VOID_PATH:
+        if md.input_type == VOID_PATH:
             part1 = ""
         else:
             part1 = ", request *{}".format(request_type)
 
-        if md.output_type in (_VOID_PATH, _NO_RETURN_PATH):
+        if md.output_type in (VOID_PATH, NO_RETURN_PATH):
             part2 = "error"
         else:
             part2 = "(*{}, error)".format(response_type)
@@ -351,17 +354,17 @@ func ({service_handler_base_name}) X_GetMethodTable() pbrpc.MethodTable {{ retur
     return service_handler_base_decl
 
 
-def _make_method_table_decl(package_path, sd):
+def make_method_table_decl(package_path, sd):
     service_name = sd.name
-    method_table_decl = "\nvar {} = pbrpc.MethodTable{{\n".format(_get_method_table_name(service_name))
+    method_table_decl = "\nvar {} = pbrpc.MethodTable{{\n".format(get_method_table_name(service_name))
 
     for md in sd.method:
         method_name = md.name
-        method_index_const_name = _get_method_index_const_name(service_name, method_name)
-        request_type = _get_struct_path(package_path, md.input_type)
-        response_type = _get_struct_path(package_path, md.output_type)
+        method_index_const_name = get_method_index_const_name(service_name, method_name)
+        request_type = get_struct_path(package_path, md.input_type)
+        response_type = get_struct_path(package_path, md.output_type)
 
-        if md.input_type == _VOID_PATH:
+        if md.input_type == VOID_PATH:
             part11 = "_"
             part12 = ""
             part13 = ""
@@ -370,7 +373,7 @@ def _make_method_table_decl(package_path, sd):
             part12 = ", *{}".format(request_type)
             part13 = ", request.(*{})".format(request_type)
 
-        if md.output_type in (_VOID_PATH, _NO_RETURN_PATH):
+        if md.output_type in (VOID_PATH, NO_RETURN_PATH):
             part21 = "error"
             part22 = "&{}{{}}, ".format(response_type)
         else:
@@ -410,7 +413,7 @@ def _make_method_table_decl(package_path, sd):
     return method_table_decl
 
 
-def _format_code(code):
+def format_code(code):
     try:
         process = subprocess.Popen("gofmt", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         output, _ = process.communicate(code)
@@ -423,13 +426,13 @@ def _format_code(code):
     return code
 
 
-def _generate_stub(fd):
+def generate_stub(fd):
     if len(fd.service) == 0:
         return
 
     file_path = fd.name
-    package_path = _get_package_path_by_file_path(file_path)
-    package_name = _get_package_name(package_path)
+    package_path = get_package_path_by_file_path(file_path)
+    package_name = get_package_name(package_path)
 
     file_content = """\
 /*
@@ -443,22 +446,22 @@ package {package_name}
         package_name=package_name,
     )
 
-    file_content += _make_import_decl(package_path)
+    file_content += make_import_decl(package_path)
 
     for sd in fd.service:
         service_name = sd.name
         file_content += "\n// {} {}\n".format(service_name, (80 - 4 - len(service_name)) * "/")
-        file_content += _make_const_decl(package_path, sd)
-        file_content += _make_service_client_decl(package_path, sd)
-        file_content += _make_service_handler_base_decl(package_path, sd)
-        file_content += _make_method_table_decl(package_path, sd)
+        file_content += make_const_decl(package_path, sd)
+        file_content += make_service_client_decl(package_path, sd)
+        file_content += make_service_handler_base_decl(package_path, sd)
+        file_content += make_method_table_decl(package_path, sd)
 
-    file_ = _response.file.add()
-    file_.name = "{}/{}.pbrpc.go".format(package_path, _remove_postfix(os.path.basename(file_path), ".proto"))
-    file_.content = _format_code(file_content)
+    file_ = response.file.add()
+    file_.name = "{}/{}.pbrpc.go".format(package_path, remove_postfix(os.path.basename(file_path), ".proto"))
+    file_.content = format_code(file_content)
 
 
-def _get_package_name(package_path):
+def get_package_name(package_path):
     try:
         i = package_path.rindex("/")
     except ValueError:
@@ -467,19 +470,19 @@ def _get_package_name(package_path):
     return package_path[i+1:].replace("-", "_").replace(".", "_")
 
 
-def _get_method_index_const_name(service_name, method_name):
+def get_method_index_const_name(service_name, method_name):
     return service_name + "_" + method_name
 
 
-def _get_service_name_const_name(service_name):
+def get_service_name_const_name(service_name):
     return service_name + "Name"
 
 
-def _get_method_table_name(service_name):
+def get_method_table_name(service_name):
     return "methodTableOf" + service_name
 
 
-def _remove_postfix(string, postfix):
+def remove_postfix(string, postfix):
     if string.endswith(postfix):
         string = string[:-len(postfix)]
 
@@ -495,9 +498,8 @@ def main():
         stdout = stdout.buffer
 
     request = plugin_pb2.CodeGeneratorRequest.FromString(stdin.read())
-    response = _generate_stubs(request)
+    response = generate_stubs(request)
     stdout.write(response.SerializeToString())
 
 
-if __name__ == "__main__":
-    main()
+main()
