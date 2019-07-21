@@ -3,7 +3,6 @@
 
 import os
 import re
-import six
 import subprocess
 import sys
 
@@ -493,7 +492,7 @@ def main():
     stdin = sys.stdin
     stdout = sys.stdout
 
-    if six.PY3:
+    if sys.version_info[0] == 3:
         stdin = stdin.buffer
         stdout = stdout.buffer
 
