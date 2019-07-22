@@ -381,12 +381,12 @@ def make_method_table_decl(package_path, sd):
 
         method_table_decl += """\
     {method_index_const_name}: {{
-        {method_index_const_name},
-        "{method_name}",
-        reflect.TypeOf({request_type}{{}}),
-        reflect.TypeOf({response_type}{{}}),
+        Index: {method_index_const_name},
+        Name: "{method_name}",
+        RequestType: reflect.TypeOf({request_type}{{}}),
+        ResponseType: reflect.TypeOf({response_type}{{}}),
 
-        func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, {part11} interface{{}}) (pbrpc.OutgoingMessage, error) {{
+        Handler: func(serviceHandler pbrpc.ServiceHandler, context_ context.Context, {part11} interface{{}}) (pbrpc.OutgoingMessage, error) {{
             methodHandler, ok := serviceHandler.(interface {{ {method_name}(context.Context{part12}) {part21} }})
 
             if !ok {{
